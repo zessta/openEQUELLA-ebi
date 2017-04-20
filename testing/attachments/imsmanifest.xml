@@ -1,0 +1,107 @@
+﻿<?xml version = "1.0" standalone = "no"?>
+<manifest identifier="pipwerksSCORMWrapper_SCORM2004" version="2004" xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"
+	xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_v1p3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:lom="http://ltsc.ieee.org/xsd/LOM" xsi:schemaLocation="http://www.imsglobal.org/xsd/imscp_v1p1 imscp_v1p1.xsd
+                        http://www.adlnet.org/xsd/adlcp_v1p3 adlcp_v1p3.xsd 
+                        http://ltsc.ieee.org/xsd/LOM lom.xsd">
+
+	<metadata>
+		<schema>ADL SCORM</schema>
+		<schemaversion>2004 3rd Edition</schemaversion>
+	</metadata>
+	<organizations default="Emantras">
+		<organization identifier="Emantras" structure="hierarchical">
+			<title>Assessment Object Demo</title>
+			<item identifier="ole_Assessment" identifierref="sco_Assessment" isvisible="true">
+				<title>Aquisição de um negócio existente</title>
+			</item>
+		</organization>
+	</organizations>
+	<resources>
+		<resource identifier="sco_Assessment" adlcp:scormType="sco" type="webcontent" xml:base='Assessment/' href="index.html">
+			<file href="adlcp_v1p3.xsd" />
+			<file href="adlnav_v1p3.xsd" />
+			<file href="adlseq_v1p3.xsd" />
+			<file href="datatypes.dtd" />
+			<file href="imscp_rootv1p1p2.xsd" />
+			<file href="imscp_v1p1.xsd" />
+			<file href="imsmanifest.xml" />
+			<file href="imsmd_v1p2p2.xsd" />
+			<file href="imsss_v1p0.xsd" />
+			<file href="imsss_v1p0auxresource.xsd" />
+			<file href="imsss_v1p0control.xsd" />
+			<file href="imsss_v1p0delivery.xsd" />
+			<file href="imsss_v1p0limit.xsd" />
+			<file href="imsss_v1p0objective.xsd" />
+			<file href="imsss_v1p0random.xsd" />
+			<file href="imsss_v1p0rollup.xsd" />
+			<file href="imsss_v1p0seqrule.xsd" />
+			<file href="imsss_v1p0util.xsd" />
+			<file href="ims_xml.xsd" />
+			<file href="index.html" />
+			<file href="lom.xsd" />
+			<file href="lomCustom.xsd" />
+			<file href="lomLoose.xsd" />
+			<file href="lomStrict.xsd" />
+			<file href="xml.xsd" />
+			<file href="XMLSchema.dtd" />
+			<file href="css/style.css" />
+			<file href="css/circle.player.css" />
+			<file href="css/video-js.css" />
+			<file href="images/back.png" />
+			<file href="images/next.png" />
+			<file href="images/close.png" />
+			<file href="images/instruction.png" />
+			<file href="images/botstrip.jpg" />
+			<file href="images/banner.jpg" />
+			<file href="images/header.png" />
+			<file href="images/audio-bg.png" />
+			<file href="images/album_loader.gif" />
+			<file href="images/buffer1.png" />
+			<file href="images/buffer2.png" />
+			<file href="images/play-1.png" />
+			<file href="images/play-2.png" />
+			<file href="images/pause-1.png" />
+			<file href="images/pause-2.png" />
+			<file href="images/progress_sprite.jpg" />
+			<file href="images/myanswerwidebg.png" />
+			<file href="images/right.png" />
+			<file href="images/wrong.png" />
+			<file href="images/flowplayer-3.2.7.swf" />
+			<file href="images/animal-1-over.png" />
+			<file href="images/animal-2-over.png" />
+			<file href="images/animal-3-over.png" />
+			<file href="images/animal-4-over.png" />
+			<file href="images/IMG10168.jpg" />
+			<file href="audio/AVA10721.mp3" />
+			<file href="audio/AVA10724.mp3" />
+			<file href="audio/AVA10721.ogg" />
+			<file href="audio/AVA10724.ogg" />
+			<file href="images/back-deselect.png" />
+			<file href="images/back-down.png" />
+			<file href="images/back-hover.png" />
+			<file href="images/back-n.png" />
+			<file href="images/next-deselect.png" />
+			<file href="images/next-down.png" />
+			<file href="images/next-hover.png" />
+			<file href="images/next-n.png" />
+			<file href="js/circle.player.js" />
+			<file href="js/data.js" />
+			<file href="js/flowplayer-3.2.6.js" />
+			<file href="js/flowplayer-3.2.6.min.js" />
+			<file href="js/iscroll.js" />
+			<file href="js/Jplayer.swf" />
+			<file href="js/jquery.grab.js" />
+			<file href="js/jquery.jplayer.min.js" />
+			<file href="js/jquery.js" />
+			<file href="js/jquery.min.js" />
+			<file href="js/jquery.transform.js" />
+			<file href="js/jquery-ui.js" />
+			<file href="js/mod.csstransforms.min.js" />
+			<file href="js/pre.js" />
+			<file href="js/video.js" />
+			<file href="js/json2.js" />
+			<file href="js/SCORM_API_wrapper.js" />
+		</resource>
+	</resources>
+</manifest>
