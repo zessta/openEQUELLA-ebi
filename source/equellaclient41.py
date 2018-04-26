@@ -35,6 +35,7 @@ import codecs
 import os, os.path, traceback, time
 from string import ascii_letters
 import wx
+import ssl
 
 ASCII_ENC = codecs.getencoder('us-ascii')
 
@@ -47,8 +48,8 @@ SOAP_PARAMETER = '<ns1:%(name)s xsi:type="%(type)s"%(arrayType)s>%(value)s</ns1:
 STANDARD_INTERFACE = {'url':'services/SoapService51', 'namespace':'http://soap.remoting.web.tle.com'}
 
 HTTP_HEADERS = {
-'Content-type': 'text/xml', 
-'SOAPAction': '', 
+'Content-type': 'text/xml',
+'SOAPAction': '',
 'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.6) Gecko/2009011913 Firefox/3.0.6',
 'Accept-Language':'en-us,en;q=0.5',
 'Accept-Charset':'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
@@ -62,11 +63,11 @@ SOAP_ENDPOINT_V51 = 'services/SoapService51'
 
 def escape(s):
     return s.replace ('&', '&amp;').replace ('<', '&lt;').replace ('>', '&gt;').replace ('"', '&quot;').replace ("'", '&apos;')
-    
+
 def value_as_string (node):
     node.normalize ()
     return ''.join ([x.nodeValue for x in node.childNodes])
-    
+
 def get_named_child_value (node, name):
     return value_as_string(node.getElementsByTagName(name)[0])
 
@@ -77,22 +78,22 @@ def stripNode(node, recurse=False):
         # list empty text nodes (to remove if any should be)
         if (childNode.nodeType == Node.TEXT_NODE and childNode.nodeValue.strip() == ""):
             nodesToRemove.append(childNode)
-            
+
         # only remove empty text nodes if not a leaf node (i.e. a child element exists)
         if childNode.nodeType == Node.ELEMENT_NODE:
             nodeToBeStripped = True
-        
+
     # remove flagged text nodes
     if nodeToBeStripped:
         for childNode in nodesToRemove:
             node.removeChild(childNode)
-    
+
     # recurse if specified
     if recurse:
         for childNode in node.childNodes:
             if childNode.nodeType == Node.ELEMENT_NODE:
                 stripNode(childNode, True)
-            
+
 def clean_unicode (s):
     if s.__class__ == unicode:
         return ASCII_ENC (s, 'xmlcharrefreplace') [0]
@@ -108,65 +109,65 @@ def value_as_node_or_string (cur):
     return ''
 
 def generate_soap_envelope (name, params, ns, token=None):
-	# Need to handle arrays
-	def p(value):
-		if isinstance(value, list):
-			buf = ''
-			for i in value:
-				buf += '<input>'+ escape (clean_unicode (i)) + '</input>'
-			return buf
-		else:
-			return escape (clean_unicode (value))
-	def arrayType(value, type):
-		if isinstance(value, list):
-			return ' ns1:arrayType="%s[%s]"' % (type, len(value))
-		else:
-			return ''
-	def t(value, type):
-		if isinstance(value, list):
-			return 'ns1:Array'
-		else:
-			return type
+    # Need to handle arrays
+    def p(value):
+        if isinstance(value, list):
+            buf = ''
+            for i in value:
+                buf += '<input>'+ escape (clean_unicode (i)) + '</input>'
+            return buf
+        else:
+            return escape (clean_unicode (value))
+    def arrayType(value, type):
+        if isinstance(value, list):
+            return ' ns1:arrayType="%s[%s]"' % (type, len(value))
+        else:
+            return ''
+    def t(value, type):
+        if isinstance(value, list):
+            return 'ns1:Array'
+        else:
+            return type
 
-	return SOAP_REQUEST % {
-		'ns': ns,
-		'method': name,
-		'params': '' if len(params) == 0 else ''.join([SOAP_PARAMETER % {
-				'name': 'in' + str(i),
-				'type': t(v[2], v[1]),
-				'value': p(v[2]),
-				'arrayType': arrayType(v[2], v[1])
-			} for i, v in enumerate(params)]),
-		'header': '' if token == None or len(token) == 0 else SOAP_HEADER_TOKEN % {'token': token}
-	}
+    return SOAP_REQUEST % {
+        'ns': ns,
+        'method': name,
+        'params': '' if len(params) == 0 else ''.join([SOAP_PARAMETER % {
+                'name': 'in' + str(i),
+                'type': t(v[2], v[1]),
+                'value': p(v[2]),
+                'arrayType': arrayType(v[2], v[1])
+            } for i, v in enumerate(params)]),
+        'header': '' if token == None or len(token) == 0 else SOAP_HEADER_TOKEN % {'token': token}
+    }
 
 def urlEncode(text):
-	return urllib.urlencode ({'q': text}) [2:]
+    return urllib.urlencode ({'q': text}) [2:]
 
 def generateToken(username, sharedSecretId, sharedSecretValue):
-	seed = str (int (time.time ())) + '000'
-	id2 = urlEncode (sharedSecretId)
-	if(not(sharedSecretId == '')):
-		id2 += ':'
+    seed = str (int (time.time ())) + '000'
+    id2 = urlEncode (sharedSecretId)
+    if(not(sharedSecretId == '')):
+        id2 += ':'
 
-	return '%s:%s%s:%s' % (
-			urlEncode(username),
-			id2,
-			seed,
-			binascii.b2a_base64(hashlib.md5(
-				username + sharedSecretId + seed + sharedSecretValue
-			).digest())
-		)
+    return '%s:%s%s:%s' % (
+            urlEncode(username),
+            id2,
+            seed,
+            binascii.b2a_base64(hashlib.md5(
+                username + sharedSecretId + seed + sharedSecretValue
+            ).digest())
+        )
 
 # Class designed to make communicated with TLE very easy!
 class TLEClient:
     # First, instantiate an instance of this class.
     # e,g, client = TLEClient ('lcms.yourinstitution.edu.au', 'admin', 'youradminpasssword')
     def __init__ (self, owner, institutionUrl, username, password, proxy = "", proxyusername = "", proxypassword = "", debug = False, sso=0):
-        
+
         self.debug = debug
         self.owner = owner
-        
+
         # trim off logon.do if it is in url
         self.institutionUrl = institutionUrl
         urlLogonPagePos = self.institutionUrl.find("/logon.do")
@@ -176,14 +177,15 @@ class TLEClient:
         # make certain instituion URL does not end with a slash
         if self.institutionUrl.endswith("/"):
             self.institutionUrl = self.institutionUrl[:-1]
-            
+
         self.protocol = urlparse(self.institutionUrl)[0]
         self.host = urlparse(self.institutionUrl)[1]
         self.context = urlparse(self.institutionUrl)[2]
-        
+
         # cookie management
-        self._cookieJar = cookielib.CookieJar()
-        self._cookieProcessor = urllib2.HTTPCookieProcessor(self._cookieJar)
+        #self._cookieJar = cookielib.CookieJar()
+        #self._cookieProcessor = urllib2.HTTPCookieProcessor(self._cookieJar)
+        self._cookieJar = []
 
         # set proxy
         self.proxy = proxy
@@ -194,27 +196,31 @@ class TLEClient:
             password_mgr.add_password(None, self.proxy, self.proxyusername, self.proxypassword)
             proxy_auth_handler = urllib2.ProxyBasicAuthHandler(password_mgr)
             proxy_handler = urllib2.ProxyHandler({"http": self.proxy})
-                
+
             # build URL opener with proxy
-            opener = urllib2.build_opener(proxy_handler, proxy_auth_handler, self._cookieProcessor)
+            #opener = urllib2.build_opener(proxy_handler, proxy_auth_handler, self._cookieProcessor)
+            opener = urllib2.build_opener(proxy_handler, proxy_auth_handler)
         else:
             # build URL opener without proxy
-            opener = urllib2.build_opener(self._cookieProcessor)
+            #opener = urllib2.build_opener(self._cookieProcessor)
+            opener = urllib2.build_opener()
         urllib2.install_opener(opener)
 
         if sso:
             self.sessionid = self._createSoapSessionFromToken (createSSOToken (username, password))
         else:
             self.sessionid = self._createSoapSession (username, password)
-    
+
     def _call (self, name, args, returns=1, facade=SOAP_ENDPOINT_V41, ns='http://soap.remoting.web.tle.com'):
         try:
             headers = {}
             headers.update(HTTP_HEADERS)
-            
+            if len(self._cookieJar) > 0:
+                headers['Cookie'] = "; ".join(self._cookieJar)
+
             endpointUrl = self.institutionUrl + "/" + facade
             wsenvelope = generate_soap_envelope (name, args, ns)
-            
+
             if self.owner.networkLogging:
                 self.owner.echo("\n\n*************************************************************")
                 self.owner.echo("---------------- COMMUNICATION WITH EQUELLA -----------------")
@@ -241,12 +247,25 @@ class TLEClient:
 
             # make request
             request = urllib2.Request(endpointUrl, wsenvelope, headers)
-            response = urllib2.urlopen(request)
+            context = ssl._create_unverified_context()
+            response = urllib2.urlopen(request, context=context)
+            #response = urllib2.urlopen(request)
 
             # read response and close connection
             s = response.read ()
             response.close()
-            
+
+            responseInfo = response.info()
+            headers = {}
+            cookie = responseInfo.getheader('set-cookie')
+            if cookie is not None:
+                for cookie_part in cookie.split(','):
+                    for cookie_name in cookie_part.split(','):
+                        if not cookie_name.upper().split("=")[0].strip() in ["PATH", "DOMAIN", "EXPIRES", "SECURE",
+                                                                             "HTTPONLY"]:
+                            # save cookie
+                            self._cookieJar.append(cookie_name)
+
             if self.owner.networkLogging:
                 self.owner.echo("HTTP RESPONSE:\n")
                 self.owner.echo(" Headers:\n%s\n" % response.info().headers)
@@ -263,29 +282,29 @@ class TLEClient:
             if self.owner.networkLogging:
                 self.owner.echo("HTTP ERROR CODE: " + str(e.code))
                 self.owner.echo(" Error Reason:\n%s\n" % httpError)
-                if httpErrorBody != "":            
+                if httpErrorBody != "":
                     self.owner.echo(" Response Body:\n%s\n" % httpErrorBody)
                 self.owner.echo("-------------------------------------------------------------")
                 self.owner.echo("--------------------- END COMMUNICATION ---------------------")
-                self.owner.echo("*************************************************************\n\n")            
-        
+                self.owner.echo("*************************************************************\n\n")
+
             errorString = ""
 
             if self.debug:
                 exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
                 errorString += "\n" + ''.join(traceback.format_exception(exceptionType, exceptionValue, exceptionTraceback)) + "\n"
-                
+
             if httpErrorBody != "":
                 try:
                     errordom = parseString(httpErrorBody)
                     faultstring = errordom.firstChild.getElementsByTagName("soap:Body")[0].getElementsByTagName("soap:Fault")[0].getElementsByTagName("faultstring")[0].firstChild.nodeValue
                     errorString += faultstring
                 except:
-                    errorString += httpError                 
+                    errorString += httpError
             else:
                 errorString += httpError
-           
-            raise Exception, errorString 
+
+            raise Exception, errorString
 
 ##        except urllib2.URLError, e:
 ##            raise Exception, str(e.args[0][1])
@@ -295,13 +314,13 @@ class TLEClient:
                 self.owner.echo("ERROR: " + str(sys.exc_info()[1]))
                 self.owner.echo("-------------------------------------------------------------")
                 self.owner.echo("--------------------- END COMMUNICATION ---------------------")
-                self.owner.echo("*************************************************************\n\n")             
+                self.owner.echo("*************************************************************\n\n")
             if self.debug:
                 exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
                 errorString = "\n" + ''.join(traceback.format_exception(exceptionType, exceptionValue, exceptionTraceback)) + "\n"
             else:
                 errorString = sys.exc_info()[1]
-            raise Exception, errorString                
+            raise Exception, errorString
 
         try:
             dom = parseString(s)
@@ -310,7 +329,7 @@ class TLEClient:
                 self.owner.echo("ERROR: " + str(sys.exc_info()[1]))
                 self.owner.echo("-------------------------------------------------------------")
                 self.owner.echo("--------------------- END COMMUNICATION ---------------------")
-                self.owner.echo("*************************************************************\n\n")              
+                self.owner.echo("*************************************************************\n\n")
             errorString = ""
             if self.debug:
                 exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
@@ -321,9 +340,9 @@ class TLEClient:
         if len (dom.getElementsByTagNameNS ('http://schemas.xmlsoap.org/soap/envelope/', 'Fault')):
             raise Exception, 'Server returned following SOAP error: %s' % dom.toprettyxml ()
         elif returns: # then return a result
-            
+
             returnValue = dom.firstChild.getElementsByTagName("soap:Body")[0].firstChild.firstChild
-            
+
             if self.owner.networkLogging:
                 returnValueString = "n/a"
                 if returnValue != None:
@@ -331,39 +350,39 @@ class TLEClient:
                         returnValueString = value_as_string(returnValue)
                     except:
                         returnValueString = str(returnValue)
-                    
+
                 self.owner.echo(" SOAP Return Parameter:\n" + str(returnValueString))
                 self.owner.echo("-------------------------------------------------------------")
                 self.owner.echo("--------------------- END COMMUNICATION ---------------------")
                 self.owner.echo("*************************************************************\n\n")
 
-            
+
             return returnValue
-        
+
         if self.owner.networkLogging:
             self.owner.echo(" SOAP Return Parameter:\nn/a")
             self.owner.echo("-------------------------------------------------------------")
             self.owner.echo("--------------------- END COMMUNICATION ---------------------")
             self.owner.echo("*************************************************************\n\n")
-        
-    
+
+
     def _createSoapSessionFromToken (self, token):
         result = self._call ('loginWithToken', (
                 ('token', 'xsd:string', token),
             ))
         return value_as_string (result)
-        
+
     def _createSoapSession (self, username, password):
         result = self._call ('login', (
                 ('username', 'xsd:string', username),
                 ('password', 'xsd:string', password),
             ))
         return value_as_string (result)
-    
+
     def logout (self):
         self._call ('logout', (
             ))
-        
+
     def getFile(self, url, filepath):
         headers = {}
 ##        headers.update(HTTP_HEADERS)
@@ -371,7 +390,8 @@ class TLEClient:
         while retry:
             try:
                 request = urllib2.Request(url, headers=headers)
-                response = urllib2.urlopen(request)
+                context = ssl._create_unverified_context()
+                response = urllib2.urlopen(request, context=context)
                 f = open(filepath, "wb")
                 f.write(response.read())
                 try:
@@ -381,7 +401,7 @@ class TLEClient:
                 retry = False
 
             except urllib2.URLError, err:
-                if hasattr(err, 'reason'): 
+                if hasattr(err, 'reason'):
                     if str(err.reason).find("10054") != -1:
                         print err.reason
                         print "Retrying..."
@@ -393,7 +413,7 @@ class TLEClient:
                         raise Exception, "url/http error code: " + str(err.code)
             except:
                 err = sys.exc_info()[1]
-                if str(err).find("10054") != -1: 
+                if str(err).find("10054") != -1:
                     print err
                     print "Retrying..."
                 else:
@@ -408,8 +428,9 @@ class TLEClient:
         retry = True
         while retry:
             try:
-                request = urllib2.Request(url, headers=headers)     
-                response = urllib2.urlopen(request)
+                request = urllib2.Request(url, headers=headers)
+                context = ssl._create_unverified_context()
+                response = urllib2.urlopen(request, context=context)
                 retry = False
                 return response.read()
             except urllib2.URLError, err:
@@ -427,16 +448,16 @@ class TLEClient:
                 else:
                     retry = False
                     raise err
-                    
-        return response.info(), data       
-        
+
+        return response.info(), data
+
     def _unzipFile (self, stagingid, zipfile, outpath):
         self._call ('unzipFile', (
                 ('item_uuid', 'xsd:string', stagingid),
                 ('zipfile', 'xsd:string', zipfile),
                 ('outpath', 'xsd:string', outpath),
             ), returns=0)
-        
+
     def _enumerateItemDefs (self):
         result = self._call('getContributableCollections', (
             ))
@@ -456,7 +477,7 @@ class TLEClient:
                 ('copyattachments', 'xsd:boolean', str(copyattachments)),
             ), 1, SOAP_ENDPOINT_V41)
         return parseString (value_as_string (result))
-        
+
     def _startEdit (self, itemid, itemversion, copyattachments):
         result = self._call ('editItem', (
                 ('itemid', 'xsd:string', itemid),
@@ -464,28 +485,28 @@ class TLEClient:
                 ('copyattachments', 'xsd:boolean', str (copyattachments)),
             ))
         return parseString (value_as_string (result))
-        
+
     def _forceUnlock (self, itemid, itemversion):
         result = self._call ('unlock', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
             ), returns=0)
         return result
-    
+
     def _stopEdit (self, xml, submit):
         result = self._call ('saveItem', (
                 ('itemXML', 'xsd:string', xml),
                 ('bSubmit', 'xsd:boolean', submit),
             ))
         return result
-    
+
     def _cancelEdit (self, itemid, itemversion):
         result = self._call ('cancelItemEdit', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
             ))
         return result
-        
+
     def _uploadFile (self, stagingid, filename, data, overwrite):
         result = self._call ('uploadFile', (
                 ('item_uuid', 'xsd:string', stagingid),
@@ -494,26 +515,26 @@ class TLEClient:
                 ('overwrite', 'xsd:boolean', overwrite),
             ))
         return result
-        
+
     def _deleteAttachmentFile (self, stagingid, filename):
         result = self._call ('deleteFile', (
                 ('item_uuid', 'xsd:string', stagingid),
                 ('filename', 'xsd:string', filename),
             ))
         return result
-        
+
     def _deleteItem (self, itemid, itemversion):
         result = self._call ('deleteItem', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
             ))
         return result
-        
+
     def getItem (self, itemid, itemversion, select=''):
         result = self._call ('getItem', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
-                ('select', 'xsd:string', select),                
+                ('select', 'xsd:string', select),
             ))
         return PropBagEx(value_as_string(result))
 
@@ -525,15 +546,15 @@ class TLEClient:
                 ('itemUuid', 'xsd:string', itemUuid),
                 ('itemVersion', 'xsd:int', str (itemVersion)),
                 ('path', 'xsd:string', path),
-                ('system', 'xsd:boolean', paramSystem),          
+                ('system', 'xsd:boolean', paramSystem),
             ), 1, SOAP_ENDPOINT_V51)
-        
+
         resultList = []
         for childNode in result.childNodes:
             resultList.append(childNode.firstChild.nodeValue)
         return resultList
 
-    
+
     def queryCount (self, itemdefs, where):
         result = self._call ('queryCount', (
                 ('itemdefs', 'xsd:string', itemdefs),
@@ -545,12 +566,12 @@ class TLEClient:
     # e.g. itemdefUUID = client.getItemdefUUID ('K-12 Educational Resource')
     def getItemdefUUID (self, itemdefName):
         return self._enumerateItemDefs () [itemdefName] ['uuid']
-        
+
     # Return an ident given a human displayable name.
     # e.g. itemdefUUID = client.getItemdefUUID ('K-12 Educational Resource')
     def getItemdefIdent (self, itemdefName):
         return self._enumerateItemDefs () [itemdefName] ['ident']
-        
+
     # Create a new repository item of the type specified. See NewItemClient for methods that can be called on the return type.
     # e.g. item = client.createNewItem (itemdefUUID)
     def createNewItem (self, itemdefid):
@@ -563,7 +584,7 @@ class TLEClient:
     def newVersionItem(self, itemid, version, copyattachments = True):
         rv = NewItemClient(self, self.owner, self._newVersionItem(itemid, str(version), copyattachments), debug=self.debug)
         return rv
-        
+
     # Edit particular item. See NewItemClient for methods that can be called on the return type.
     # e.g. item = client.createNewItem (itemdefUUID)
     def editItem (self, itemid, version, copyattachments):
@@ -578,18 +599,18 @@ class TLEClient:
         paramReverseOrder = 'false'
         if reverseOrder:
             paramReverseOrder = 'true'
-            
+
         paramOnlyLive = 'false'
         if onlyLive:
-            paramOnlyLive = 'true'            
-            
+            paramOnlyLive = 'true'
+
         result = self._call ('searchItems', (
                 ('freetext', 'xsd:string', query),
                 ('collectionUuids', 'xsd:string', itemdefs),
-                ('whereClause', 'xsd:string', where),  
+                ('whereClause', 'xsd:string', where),
                 ('onlyLive', 'xsd:boolean', paramOnlyLive),
-                ('orderType', 'xsd:int', str (orderType)),                
-                ('reverseOrder', 'xsd:boolean', paramReverseOrder),                
+                ('orderType', 'xsd:int', str (orderType)),
+                ('reverseOrder', 'xsd:boolean', paramReverseOrder),
                 ('offset', 'xsd:int', str(offset)),
                 ('limit', 'xsd:int', str(limit)),
             ))
@@ -599,18 +620,18 @@ class TLEClient:
         paramReverseOrder = 'false'
         if reverseOrder:
             paramReverseOrder = 'true'
-            
+
         paramOnlyLive = 'false'
         if onlyLive:
-            paramOnlyLive = 'true'            
-            
+            paramOnlyLive = 'true'
+
         result = self._call ('searchItemsFast', (
                 ('freetext', 'xsd:string', freetext),
                 ('collectionUuids', 'xsd:string', collectionUuids),
-                ('whereClause', 'xsd:string', whereClause),  
+                ('whereClause', 'xsd:string', whereClause),
                 ('onlyLive', 'xsd:boolean', paramOnlyLive),
-                ('orderType', 'xsd:int', str (orderType)),                
-                ('reverseOrder', 'xsd:boolean', paramReverseOrder),                
+                ('orderType', 'xsd:int', str (orderType)),
+                ('reverseOrder', 'xsd:boolean', paramReverseOrder),
                 ('offset', 'xsd:int', str(offset)),
                 ('length', 'xsd:int', str(length)),
                 ('resultCategories', 'xsd:string', resultCategories),
@@ -621,9 +642,9 @@ class TLEClient:
         result = self._call ('setOwner', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
-                ('userId', 'xsd:string', ownerid),                
+                ('userId', 'xsd:string', ownerid),
             ), 1, facade = SOAP_ENDPOINT_V51)
-        
+
     def setOwnerByUsername(self, itemID, version, username, saveNonexistentUsernamesAsIDs = False):
         matchingUsers = self.searchUsersByGroup("", username)
         matchingUserNodes = matchingUsers.getNodes("user", False)
@@ -639,19 +660,19 @@ class TLEClient:
                 self.setOwner(itemID, version, username)
             else:
                 raise Exception, "User [%s] not found in EQUELLA" % username
-        
+
     def addSharedOwner (self, itemid, itemversion, ownerid):
         result = self._call ('addSharedOwner', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
-                ('userId', 'xsd:string', ownerid),                
+                ('userId', 'xsd:string', ownerid),
             ))
 
     def addSharedOwners (self, itemid, itemversion, collaboratorUsernames, saveNonexistentUsernamesAsIDs = False):
         for username in collaboratorUsernames:
 
             matchingUsers = self.searchUsersByGroup("", username)
-            matchingUserNodes = matchingUsers.getNodes("user", False)            
+            matchingUserNodes = matchingUsers.getNodes("user", False)
 
             # if any matches get first matching user
             if len(matchingUserNodes) > 0:
@@ -663,26 +684,26 @@ class TLEClient:
                 if saveNonexistentUsernamesAsIDs:
                     self.addSharedOwner(itemid, itemversion, username)
                 else:
-                    raise Exception, "User [%s] not found in EQUELLA" % username     
+                    raise Exception, "User [%s] not found in EQUELLA" % username
 
     def removeSharedOwner (self, itemid, itemversion, ownerid):
         result = self._call ('removeSharedOwner', (
                 ('itemid', 'xsd:string', itemid),
                 ('version', 'xsd:int', str (itemversion)),
-                ('userId', 'xsd:string', ownerid),                
+                ('userId', 'xsd:string', ownerid),
             ))
 
-        
+
     def getUser (self, userId):
         result = self._call ('getUser', (
                 ('userId', 'xsd:string', userId),
             ), 1, facade = SOAP_ENDPOINT_V51)
         return PropBagEx(value_as_string(result))
-    
+
     def searchUsersByGroup (self, groupUuid, searchString):
         result = self._call ('searchUsersByGroup', (
                 ('groupUuid', 'xsd:string', groupUuid),
-                ('searchString', 'xsd:string', searchString),                
+                ('searchString', 'xsd:string', searchString),
             ), 1, SOAP_ENDPOINT_V51)
         return PropBagEx(value_as_string(result))
 
@@ -728,20 +749,20 @@ class TLEClient:
                 ('uuid', 'xsd:string', uuid),
                 ('groupid', 'xsd:string', groupId),
             ), facade=SOAP_INTERFACE_V2)
-            
+
     def removeUserFromGroup (self, uuid, groupId):
         self._call ('removeUserFromGroup', (
                 ('ssid', 'xsd:string', self.sessionid),
                 ('uuid', 'xsd:string', uuid),
                 ('groupid', 'xsd:string', groupId),
-            ), facade=SOAP_INTERFACE_V2)           
+            ), facade=SOAP_INTERFACE_V2)
 
     def removeUserFromAllGroups (self, userId):
         self._call ('removeUserFromAllGroups', (
                 ('ssid', 'xsd:string', self.sessionid),
                 ('userUuid', 'xsd:string', userId),
-            ), facade=SOAP_INTERFACE_V2)           
-            
+            ), facade=SOAP_INTERFACE_V2)
+
     def isUserInGroup (self, userId, groupId):
         return value_as_string(self._call ('isUserInGroup', (
                 ('ssid', 'xsd:string', self.sessionid),
@@ -760,28 +781,28 @@ class NewItemClient:
         self.xml = self.newDom.firstChild
         self.uuid = self.prop.getNode("item/@id")
         self.version =  self.prop.getNode("item/@version")
-       
+
         if copyattachments:
             self.stagingid = self.prop.getNode("item/staging")
-        
+
         # remove old version references to non-existent start-pages
         if newversion and not copyattachments:
             attachmentsNode.removeNode("item/attachments/attachment")
 
     def getUUID (self):
         return self.uuid
-        
+
     def getVersion (self):
         return self.version
-        
+
     def getItemdefUUID (self):
         return self.prop.getNode("item/@itemdefid")
-    
-    def read_in_chunks(self, file_object, chunk_size=(1024 * 1024)): 
-        while True: 
-            data = file_object.read(chunk_size) 
-            if not data: 
-                break 
+
+    def read_in_chunks(self, file_object, chunk_size=(1024 * 1024)):
+        while True:
+            data = file_object.read(chunk_size)
+            if not data:
+                break
             yield data
 
     # Upload a file as an attachment to this item. path is where the item will live inside of the repository, and should not contain a preceding slash.
@@ -811,15 +832,15 @@ class NewItemClient:
                     else:
                         self.owner.log.SetReadOnly(False)
                         self.owner.log.AppendText("\n")
-                        self.owner.log.SetReadOnly(True)                        
-                        
+                        self.owner.log.SetReadOnly(True)
+
                         sys.stdout.write("Halted by user\n")
                         self.owner.echo(showstatus + " Uploading...Halted by user", False)
                     break
                 uploaded += len(chunk)
                 encodedChunk = b2a_base64(chunk)
                 self.parClient._uploadFile (self.stagingid, path, encodedChunk, firstChunk)
-                
+
                 if firstChunk == "true":
                     firstChunk = "false"
                 if showstatus:
@@ -833,16 +854,16 @@ class NewItemClient:
                         if uploaded >= filesize:
                             self.owner.echo(showstatus + " Uploading...Done", False)
                             sys.stdout.write("Done\n")
-                            
+
                             self.owner.log.DocumentEnd()
                             self.owner.log.SetReadOnly(False)
                             self.owner.log.DelLineLeft()
                             self.owner.log.AppendText(showstatus + " Uploading...Done\n")
-                            self.owner.log.SetReadOnly(True)                          
+                            self.owner.log.SetReadOnly(True)
                         else:
                             sys.stdout.write(".")
-                            sys.stdout.flush()    
-                            
+                            sys.stdout.flush()
+
                             progressString = showstatus + " Uploading...%s%%" % ((uploaded * 100)/ filesize)
                             self.owner.log.DocumentEnd()
                             self.owner.log.SetReadOnly(False)
@@ -854,7 +875,7 @@ class NewItemClient:
             if not self.debug:
                 sys.stdout.write("\n")
             raise
-            
+
     def unzipFile (self, path, name):
         self.parClient._unzipFile (self.stagingid, path, name)
 
@@ -865,14 +886,14 @@ class NewItemClient:
             self.attachFile (imsfilename, file, showstatus, chunk_size)
             if not self.owner.StopProcessing:
                 self.parClient._unzipFile (self.stagingid, imsfilename, filename)
-        
+
         self.prop.setNode("item/itembody/packagefile", filename)
         self.prop.setNode("item/itembody/packagefile/@name", title)
         self.prop.setNode("item/itembody/packagefile/@size", str(size))
         self.prop.setNode("item/itembody/packagefile/@stored", "true")
         if uuid != '':
             self.prop.setNode("item/itembody/packagefile/@uuid", uuid)
-    
+
 
     # Uploads a SCORM package
     def attachSCORM (self, file, filename, description, showstatus=None, upload = True, size=1024, uuid = '', chunk_size=(4048 * 4048)):
@@ -892,7 +913,7 @@ class NewItemClient:
         attachment.createNode("file", filename)
         attachment.createNode("description", description)
         if uuid != '':
-            attachment.createNode("uuid", uuid)        
+            attachment.createNode("uuid", uuid)
 
     def attachResource (self, resourceItemUuid, resourceItemVersion, resourceDescription, uuid = '', attachmentUuid = ""):
         # create attachment subtree
@@ -906,12 +927,12 @@ class NewItemClient:
         attachment.createNode("description", resourceDescription)
         if uuid != '':
             attachment.createNode("uuid", uuid)
-            
+
         # create uuid entry and append to attributes
         attributeEntry = attachment.newSubtree("attributes/entry")
         attributeEntry.createNode("string", "uuid")
         attributeEntry.createNode("string", resourceItemUuid)
-        
+
         # create type entry and append to attributes
         attributeEntry = attachment.newSubtree("attributes/entry")
         attributeEntry.createNode("string", "type")
@@ -919,33 +940,33 @@ class NewItemClient:
             attributeEntry.createNode("string", "p")
         else:
             attributeEntry.createNode("string", "a")
-        
+
         # create version entry and append to attributes
         attributeEntry = attachment.newSubtree("attributes/entry")
         attributeEntry.createNode("string", "version")
-        attributeEntry.createNode("int", str(resourceItemVersion))       
-        
+        attributeEntry.createNode("int", str(resourceItemVersion))
+
     # Mark an attached file as a start page to appear on the item summary page.
     # e.g. item.addStartPage ('Great song!', 'support/song.wav')
     def addStartPage (self, description, path, size=1024, uuid='', thumbnail = ""):
-        
+
         # delete existing attachment noes of the same /file and /description
         self.prop.removeNode("item/attachments/attachment[file = '%s']" % path)
-    
+
         attachment = self.prop.newSubtree("item/attachments/attachment")
         attachment.createNode("@type", "local")
         attachment.createNode("file", path)
         attachment.createNode("description", description)
         attachment.createNode("size", str(size))
         if uuid != '':
-            attachment.createNode("uuid", uuid)        
+            attachment.createNode("uuid", uuid)
         if thumbnail != "":
             attachment.createNode("thumbnail", thumbnail)
-    
+
     def deleteAttachments(self):
         self.getXml().removeNode('item/attachments/attachment')
         self.parClient._deleteAttachmentFile(self.stagingid,"")
-    
+
     # Add a URL as a resource to this item.
     # e.g. item.addUrl ('Interesting link', 'http://www.thelearningedge.com.au/')
     def addUrl (self, description, url, uuid=''):
@@ -970,7 +991,7 @@ class NewItemClient:
 
     def cancelEdit(self):
         self.parClient._cancelEdit(self.getUUID (), self.getVersion (), self.getItemdefUUID ())
-    
+
     def delete (self):
         self.parClient._deleteItem(self.getUUID (), self.getVersion (), self.getItemdefUUID ())
 
@@ -981,7 +1002,7 @@ class NewItemClient:
 
     def getXml(self):
         return self.prop
-        
+
 # PropBag classes - was propbag.py
 
 class PropBagEx:
@@ -1007,7 +1028,7 @@ class PropBagEx:
             self.document = s.ownerDocument
             self.root = s
         self.xpath = XPath()
-    
+
     def getNodes (self, xpath, string=True):
         return self.xpath.selectNodes(xpath, self.root, string)
 
@@ -1060,7 +1081,7 @@ class PropBagEx:
                 break
         return returnNodes
 
-    def removeNode (self, xpath): 
+    def removeNode (self, xpath):
         matchingNodes = self.getNodes(xpath, False)
         for matchingNode in matchingNodes:
             if matchingNode.nodeType == Node.ATTRIBUTE_NODE:
@@ -1069,18 +1090,18 @@ class PropBagEx:
             else:
                 parentNode = matchingNode.parentNode
                 parentNode.removeChild(matchingNode)
-        
+
     # Print tabbed XML for this item, useful for debugging.
     def printXml (self):
         print ASCII_ENC (self.root.toprettyxml (), 'xmlcharrefreplace') [0]
-    
+
     # return underlying minidom of XmlWrapper
     def toXml (self):
         return self.root.toxml ()
-    
+
     def nodeCount(self, xpath):
         return len(self.getNodes(xpath))
-    
+
     def createNode (self, xpath, value):
         newNodes = self._createNewNodes(xpath)
         for matchingNode in newNodes:
@@ -1088,7 +1109,7 @@ class PropBagEx:
                 matchingNode.nodeValue = value
             else:
                 matchingNode.appendChild(self.document.createTextNode(value))
-        
+
     def setNode (self, xpath, value, createNew=False):
         if createNew:
             self.createNode(xpath, value)
@@ -1106,10 +1127,10 @@ class PropBagEx:
                     matchingNode.appendChild(self.document.createTextNode(value))
             if len(matchingNodes) == 0:
                 self.createNode(xpath, value)
-    
+
     def getSubtree(self, xpath):
         return PropBagEx(self.getNodes(xpath, string=False) [0])
-    
+
     def newSubtree(self, xpath):
         return PropBagEx(self._createNewNodes(xpath, onlyOne = True)[0])
 
@@ -1123,7 +1144,7 @@ class PropBagEx:
 
     def nodeExists(self, xpath):
         return self.nodeCount(xpath) > 0
-    
+
     def validateXpath(self, xpath):
         return self.xpath.validateXpath(xpath)
 
@@ -1142,7 +1163,7 @@ class XPath:
     def validateXpath(self, xpath):
         self._selectNodes(xpath, False, self.testNode, True, self.debugLevel, self.debugLevel)
         return True
-            
+
     def _selectNodes(self, xpath, asStrings, curNode, validateOnly = False, dl = 0, sd = 0):
         if dl > 1:
             print " DEBUG", "".ljust(sd),"_selectNodes(<%s>, %s%s)" % (curNode.nodeName, xpath, ", validateOnly" if validateOnly else "")
@@ -1155,13 +1176,13 @@ class XPath:
         matchingNodes = []
 
         i = step.find("[")
-        
+
         if i != -1:
             stepNodename = step[:i]
             stepPredicate = step[i + 1:-1]
             if stepPredicate == "":
                 raise Exception, "Empty predicate ('%s')" % step
-        
+
         # XPath validation only
         if validateOnly:
             if stepNodename not in ["", ".", "..", "*", "text()", "node()"]:
@@ -1179,28 +1200,28 @@ class XPath:
                 if stepPredicate != "":
                     self.evaluateCondition(stepPredicate, curNode, validateOnly, 0, 0, dl = dl, sd = sd + 1)
 
-            # if more xpath left recurse    
+            # if more xpath left recurse
             if remainingXpath != "":
                 self._selectNodes(remainingXpath, False, curNode, validateOnly, dl = dl, sd = sd + 1)
-                
+
             if dl >= 1:
-                print " DEBUG", "".ljust(sd),"_selectNodes(<%s>, %s) -> %s" % (curNode.nodeName, xpath, "VALID")                
+                print " DEBUG", "".ljust(sd),"_selectNodes(<%s>, %s) -> %s" % (curNode.nodeName, xpath, "VALID")
             return []
-        
+
         # XPath Processing
-        
+
         # check if attribute
         if stepNodename.startswith("@") or stepNodename == "node()":
             if stepNodename.startswith("@"):
                 attrNodename = stepNodename[1:]
             else:
                 attrNodename = stepNodename
-            
+
             if curNode.nodeType == Node.ELEMENT_NODE:
                 if curNode.hasAttribute(attrNodename):
                     # match on attribute name
                     matchingNodes.append(curNode.getAttributeNode(attrNodename))
-                    
+
                 elif attrNodename == "*" or attrNodename == "node()":
                     # wildcard so iterate through attributes and do predicate test on each
                     predicateMatch = False
@@ -1212,20 +1233,20 @@ class XPath:
                             # no predicate
                             predicateMatch = True
                         else:
-                            # get count of attributes (for last())            
+                            # get count of attributes (for last())
                             childNodeCount = len(curNode.attributes)
-                            
+
                             # evaluate attriute wildcard predicate
                             predicateMatch = self.evaluateCondition(stepPredicate, curNode.attributes[key], validateOnly, i, childNodeCount, dl = dl, sd = sd + 1)
 
                         # append node to return if matching
                         if predicateMatch:
                             matchingNodes.append(curNode.attributes[key])
-        
+
         # check if named element
         if stepNodename not in ["", ".", "..", "text()"] and not stepNodename.startswith("@"):
-            
-            # get count of child nodes (for last())            
+
+            # get count of child nodes (for last())
             childNodeCount = 0
             for childNode in curNode.childNodes:
                 if childNode.nodeType == Node.ELEMENT_NODE and (childNode.nodeName == stepNodename or stepNodename == "*"):
@@ -1250,18 +1271,18 @@ class XPath:
                         if predicateMatch:
                             if remainingXpath != "":
                                 if remainingXpath.startswith("/"):
-                                    
+
                                     # xpath was split on a double slash
                                     remainingXpath = remainingXpath[1:]
                                     matchingNodes += self.queryAllChildElements(remainingXpath, childNode, validateOnly)
-                                    
+
                                 # more relative xpath remaining so recurse _selectNodes() and include results for returning
                                 matchingNodes += self._selectNodes(remainingXpath, asStrings=False, curNode = childNode, validateOnly=validateOnly, dl = dl, sd = sd + 1)
-                                
+
                             else:
                                 # no xpath left so include child node for returning
                                 matchingNodes.append(childNode)
-                                
+
         # check if empty string
         elif stepNodename == "":
             if remainingXpath != "":
@@ -1276,15 +1297,15 @@ class XPath:
             else:
                 # empty xpath
                 matchingNodes.append(curNode)
-        
-        # check if self or parent        
+
+        # check if self or parent
         elif stepNodename == ".":
             matchingNodes.append(curNode)
         elif stepNodename == "..":
             if remainingXpath != "":
                 # more relative xpath remaining so recurse _selectNodes()
                 matchingNodes += self._selectNodes(remainingXpath, asStrings=False, curNode = curNode.parentNode, validateOnly=validateOnly, dl = dl, sd = sd + 1)
-                
+
             else:
                 matchingNodes.append(curNode.parentNode)
 
@@ -1293,7 +1314,7 @@ class XPath:
             for child in curNode.childNodes:
                 if child.nodeType == Node.TEXT_NODE:
                     matchingNodes.append(child)
-            
+
         # return matches as nodes or strings
         if not asStrings:
             returnValues = matchingNodes
@@ -1321,10 +1342,10 @@ class XPath:
             # check if childNode is an element
             if childNode.nodeType == Node.ELEMENT_NODE:
                 result += self._selectNodes(xpath, asStrings=False, curNode = childNode, validateOnly=validateOnly, dl = dl, sd = sd + 1)
-                
+
                 # recurse queryAllChildElements()
                 result += self.queryAllChildElements(xpath, childNode, dl, sd)
-        
+
         return result
 
     def reverseString(self, string):
@@ -1372,7 +1393,7 @@ class XPath:
                 if foundDelimiter != "":
                     break
             lhs += char
-            
+
         if unclosedBrackets > 0:
             raise Exception, "Missing ']' in '%s'" % string
         if unclosedBrackets < 0:
@@ -1383,7 +1404,7 @@ class XPath:
             raise Exception, "Extra ')' in '%s'" % string
         if inDoubleQuote or inSingleQuote:
             raise Exception, "Unterminated string '%s'" % string
-        
+
         if reverse:
             rhsTemp = self.reverseString(lhs)
             lhs = self.reverseString(rhs)
@@ -1422,7 +1443,7 @@ class XPath:
                     lhsResult = True
                 else:
                     lhsResult = False
-            
+
         if rhs != "":
             # recurse the righthand side
             rhsResult = self.evaluateCondition(rhs, curNode, validateOnly, nodePosition, sibCount, dl = dl, sd = sd + 1)
@@ -1435,14 +1456,14 @@ class XPath:
         if dl >= 2:
             print " DEBUG", "".ljust(sd),"evaluateCondition(%s) -> %s" % (statement, result)
         return result
-        
-            
+
+
     def evaluateComparison(self, string, curNode, validateOnly, nodePosition, sibCount, dl = 0, sd = 0):
         if dl > 3:
             print " DEBUG", "".ljust(sd),"evaluateComparison(%s)" % (string)
         lhs, rhs, operator = self.splitFirstOuter(string, ["=", "!=", "<", ">", "<=", ">="], False, dl = dl, sd = sd + 1)
         lhsResult, lhsResultType = self.evaluateStatement(lhs, curNode, validateOnly, nodePosition, sibCount, dl, sd + 1)
-        
+
         if rhs != "":
             rhsResult, rhsResultType = self.evaluateStatement(rhs, curNode, validateOnly, nodePosition, sibCount, dl, sd + 1)
             result = False, "BOOLEAN"
@@ -1451,9 +1472,9 @@ class XPath:
                     for rhsValue in rhsResult:
                         result = self.compareValues(operator, lhsValue, "STRING", rhsValue, "STRING", dl, sd), "BOOLEAN"
                         if result[0]:
-                            break                        
+                            break
                     if result[0]:
-                        break                        
+                        break
             elif lhsResultType == "NODE_SET":
                 for lhsValue in lhsResult:
                     result = self.compareValues(operator, lhsValue, "STRING", rhsResult, rhsResultType, dl, sd), "BOOLEAN"
@@ -1498,9 +1519,9 @@ class XPath:
         elif operator == ">=" and lhsValue >= rhsValue:
             result = True, "BOOLEAN"
         if dl >= 4:
-            print " DEBUG", "".ljust(sd),"compareValues(%s %s %s) -> %s" % (lhsValue, operator, rhsValue, result)            
+            print " DEBUG", "".ljust(sd),"compareValues(%s %s %s) -> %s" % (lhsValue, operator, rhsValue, result)
         return result
-    
+
     def evaluateStatement(self, statement, curNode, validateOnly, nodePosition, sibCount, dl = 0, sd = 0):
         if dl > 5:
             print " DEBUG", "".ljust(sd),"evaluateStatement(%s)" % (statement)
@@ -1515,7 +1536,7 @@ class XPath:
             rhsResult, rhsResultType = self.evaluateStatement(rhs.strip()[1:i], curNode, validateOnly, nodePosition, sibCount, dl, sd + 1)
         else:
             rhsResult, rhsResultType = self.evaluateValue(rhs, curNode, validateOnly, nodePosition, sibCount, dl, sd + 1)
-            
+
         if lhs != "":
             # recurse the lefthand side
             lhsResult, lhsResultType = self.evaluateStatement(lhs, curNode, validateOnly, nodePosition, sibCount, dl, sd + 1)
@@ -1535,11 +1556,11 @@ class XPath:
             print " DEBUG", "".ljust(sd),"evaluateStatement(%s) -> %s" % (statement, result)
         return result
 
-    
+
     def evaluateValue(self, value, curNode, validateOnly, nodePosition, sibCount, dl = 0, sd = 0):
         if dl > 5:
             print " DEBUG", "".ljust(sd),"evaluateValue(%s)" % (value)
-            
+
         # integer
         try:
             integer = int(value)
@@ -1566,7 +1587,7 @@ class XPath:
                 evaluation = sibCount, "NUMBER"
             # name()
             elif value.strip().startswith("name("):
-                # find closing parenthesis 
+                # find closing parenthesis
                 i = value.rfind(")")
                 if i == -1:
                     raise Exception, "Malformed function '%s'" % value
@@ -1587,13 +1608,13 @@ class XPath:
             elif value.strip().startswith("upper-case("):
                 parameters = self.getFunctionParameters(value, ["BOOLEAN|STRING|NUMBER|NODE_SET"], curNode, validateOnly, nodePosition, sibCount, dl = dl, sd = sd + 1)
                 string = self.convertToString(parameters[0][0], parameters[0][1])
-                
+
                 evaluation = string.upper(), "STRING"
             # lower-case()
             elif value.strip().startswith("lower-case("):
                 parameters = self.getFunctionParameters(value, ["BOOLEAN|STRING|NUMBER|NODE_SET"], curNode, validateOnly, nodePosition, sibCount, dl = dl, sd = sd + 1)
                 string = self.convertToString(parameters[0][0], parameters[0][1])
-                
+
                 evaluation = string.lower(), "STRING"
             # substring()
             elif value.strip().startswith("substring("):
@@ -1635,7 +1656,7 @@ class XPath:
             # string-length()
             elif value.strip().startswith("string-length("):
                 parameters = self.getFunctionParameters(value, ["BOOLEAN|STRING|NUMBER|NODE_SET"], curNode, validateOnly, nodePosition, sibCount, minParams=0, dl = dl, sd = sd + 1)
-                
+
                 if len(parameters) == 0:
                     if curNode.firstChild != None:
                         string = self.convertToString(curNode.firstChild.nodeValue, "STRING")
@@ -1676,14 +1697,14 @@ class XPath:
             convertedValue = "true" if value else "false"
         else:
             raise Exception, "Cannot convert type %s '%s'" %(valueType, value)
-        
+
         return convertedValue
 
     def getFunctionParameters(self, string, paramTypes, curNode, validateOnly, nodePosition, sibCount, minParams=-1, dl = 0, sd = 0):
         if dl > 6:
             print " DEBUG", "".ljust(sd),"getFunctionParameters(%s, %s)" % (string, paramTypes)
 
-        # find closing parenthesis 
+        # find closing parenthesis
         i = string.rfind(")")
         if i == -1:
             raise Exception, "Malformed function '%s'" % string
@@ -1725,10 +1746,10 @@ class XPath:
                 # process int, string or xpath parameter
                 parameters[i] = self.evaluateStatement(parameter[0], curNode, validateOnly, nodePosition, sibCount, dl = dl, sd = sd + 1)
 
-                # verify parameter types match expected   
+                # verify parameter types match expected
                 if parameters[i][1] not in allowedTypes:
                     raise Exception, "Incorrect parameter type %s in '%s' expecting one of the following %s" % (parameters[i][1], string, allowedTypes)
-                    
+
             elif "BOOLEAN" in allowedTypes:
                 # process boolean parameter
                 parameters[i] = self.evaluateCondition(parameter[0], curNode, validateOnly, nodePosition, sibCount, dl = dl, sd = sd + 1), "BOOLEAN"
@@ -1740,4 +1761,3 @@ class XPath:
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
-
