@@ -1,12 +1,15 @@
 # EBI (Equella Bulk Importer)
-The EBI is a popular tool for importing content into EQUELLA. It can also be used for updating, deleting and exporting content. 
+The EBI is a popular tool for importing content into EQUELLA. It can also be used for updating, deleting and exporting content.
 
 The EBI is written in Python and compiled to a standalone version (i.e. will run on a computer without Python) for Windows and Macintosh. The source files are included in the Windows package so that the EBI can be used on Linux computers with Python (and wxPython, see Dependencies) installed.
 
 User guide can be found:  https://github.com/equella/equella.github.io/blob/master/equella-tools/bulkImporterUserManual.md
 
 ## Dependencies
-The EBI requires both Python 2.7+ and the GUI framework wxPython. However, to use a standalone EBI package neither Python nor wxPython need be installed as they are both included in the standalone package. To run the EBI from source files (as required on Linux) both Python 2.7+ and wxPython must be installed.
+The EBI requires both Python 2.7+ and the GUI framework wxPython.
+The latest release of MS Windows version does not required to install Python nor wxPython.
+To run the EBI on Linux and Mac, or running from source files (as required on Linux) both Python 2.7+ and wxPython must be installed.
+
 To make modifications to and test EBI Python 2.7.x and wxPython must be installed on the developer’s workstation. To compile the EBI as a standalone package then, as well as Python 2.7.x and wxPython, one of the following is required on the workstation:
 * py2exe (for Windows), or
 * py2app (for Macintosh)
@@ -26,13 +29,10 @@ package.bat does the following automatically:
 5.	Invokes package.py which zips the “ebi” folder to ebi.zip
 
 ### Compiling a Macintosh Standalone Package
-Use a Macintosh computer with Python 2.7+, wxPython and py2app installed. Place package.command, setup.py (for Macintosh) and ebi.command in the same folder. In that folder create a sub folder called source and in source create a sub folder called ebi. Place all the EBI source files in /source/ebi.
+Use a Macintosh computer with Python 2.7+, wxPython 2.8 and py2app installed. Place package.command, setup.py (for Macintosh) and ebi.command in the same folder. In that folder create a sub folder called source and in source create a sub folder called ebi. Place all the EBI source files in /source/ebi.
 Run package.command to create ebi.dmg (it will appear in a sub folder called dist).
 package.command does the following:
 1.	Removes any previous packages from the working folder
 2.	Invokes setup.py and py2app to generate a standalone app package called “ebi.app” in a folder called “dist”
 3.	Copies the image files and ebi.command into the “ebi.app” package
-4.	Creates a DMG called ebi.dmg in the “dist” folder from ebi.app (by using hdituil) 
-
-
-
+4.	Creates a DMG called ebi.dmg in the “dist” folder from ebi.app (by using hdituil)
