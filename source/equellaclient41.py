@@ -386,6 +386,10 @@ class TLEClient:
     def getFile(self, url, filepath):
         headers = {}
 ##        headers.update(HTTP_HEADERS)
+        headers.update(HTTP_HEADERS)
+        if len(self._cookieJar) > 0:
+            headers['Cookie'] = "; ".join(self._cookieJar)
+
         retry = True
         while retry:
             try:
