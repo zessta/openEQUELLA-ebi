@@ -11,7 +11,6 @@ cp source/ebi/gtk-help.png dist/ebi.app/Contents/Resources/lib/.
 cp source/ebi/gtk-stop.png dist/ebi.app/Contents/Resources/lib/.
 cp source/ebi/options.png dist/ebi.app/Contents/Resources/lib/.
 cp source/ebi/pause.png dist/ebi.app/Content
-frjikjhjkfdf021s/Resources/lib/.
 cp ebi.command dist/ebi.app/Contents/MacOS/.
 
 cd dist
