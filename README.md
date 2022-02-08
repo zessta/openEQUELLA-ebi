@@ -3,7 +3,7 @@ The EBI is a popular tool for importing content into openEQUELLA. It can also be
 
 The EBI is written in Python and compiled to a standalone version (i.e. will run on a computer without Python) for Windows and Macintosh. The source files are included in the Windows package so that the EBI can be used on Linux computers with Python (and wxPython, see Dependencies) installed.
 
-User guide can be found:  https://github.com/equella/equella.github.io/blob/master/equella-tools/bulkImporterUserManual.md
+User guide can be found at: https://openequella.github.io/equella-tools/bulkImporterUserManual.html
 
 ## Dependencies
 The EBI requires both Python 2.7+ and the GUI framework wxPython.
