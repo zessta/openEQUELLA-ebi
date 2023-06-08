@@ -264,7 +264,10 @@ class TLEClient:
                         if not cookie_name.upper().split("=")[0].strip() in ["PATH", "DOMAIN", "EXPIRES", "SECURE",
                                                                              "HTTPONLY"]:
                             # save cookie
-                            self._cookieJar.append(cookie_name)
+                            if len(self._cookieJar) < 10:
+                                self._cookieJar.append(cookie_name)
+                            else:
+                                self._cookieJar[0] = cookie_name
 
             if self.owner.networkLogging:
                 self.owner.echo("HTTP RESPONSE:\n")
